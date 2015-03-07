@@ -9,23 +9,15 @@ import android.view.View;
 import android.widget.Button;
 
 import com.squareup.okhttp.FormEncodingBuilder;
-import com.squareup.okhttp.MediaType;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 import com.squareup.okhttp.RequestBody;
 import com.squareup.okhttp.Response;
 
-import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-
 public class YooActivity extends ActionBarActivity {
 
     OkHttpClient client = new OkHttpClient();
-
+    final private String API_TOKEN = "key here";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +26,9 @@ public class YooActivity extends ActionBarActivity {
         ((Button)findViewById(R.id.yo)).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                sendYo("<username>");
+                //sendYo("<username>");
+                //getSubscriberCount();
+                userExists("<username>");
             }
 
         });
@@ -70,7 +64,7 @@ public class YooActivity extends ActionBarActivity {
             public void run() {
                 try {
                     FormEncodingBuilder builder = new FormEncodingBuilder();
-                    builder.add("api_token","09f7f2f3-7c52-4a99-9010-d4326867f5d0").add("username",user);
+                    builder.add("api_token",API_TOKEN).add("username",user);
                     RequestBody body = builder.build();
 
                     Request request = new Request.Builder()
@@ -87,7 +81,42 @@ public class YooActivity extends ActionBarActivity {
         });
     }
 
-    void getAccount(String username, String passcode){
+    void getSubscriberCount(){
+        new Thread( new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Request request = new Request.Builder()
+                            .url("https://api.justyo.co/subscribers_count?api_token="+API_TOKEN)
+                            .get()
+                            .build();
+                    Response response = client.newCall(request).execute();
+                    Log.e("RESULT",response.body().string());
+                }catch (Exception e){
+                    Log.e("ERROR","Failed to Send Yo");
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
 
+    void userExists(String username){
+        final String user = username;
+        new Thread( new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Request request = new Request.Builder()
+                            .url("https://api.justyo.co/check_username?api_token="+API_TOKEN+"&username="+user)
+                            .get()
+                            .build();
+                    Response response = client.newCall(request).execute();
+                    Log.e("RESULT",response.body().string());
+                }catch (Exception e){
+                    Log.e("ERROR","Failed to Send Yo");
+                    e.printStackTrace();
+                }
+            }
+        }).start();
     }
 }
