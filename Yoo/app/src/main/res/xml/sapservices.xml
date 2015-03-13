@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <application name="Yoo">
+        <serviceProfile
+            id="/system/sapsample"
+            name="sapsample"
+            role="provider"
+            serviceImpl="com.yoprettylady.yoo.SAPServiceProvider"
+            version="1.0"
+            serviceLimit="ANY"
+            serviceTimeout="10">
+            <supportedTransport>
+                <transport type="TRANSPORT_BLUETOOTH"/>
+            </supportedTransport>
+            <serviceChannel
+                id="123"
+                dataRate="low"
+                priority="low"
+                reliability="enable"/>
+        </serviceProfile>
+    </application>
+</resources>
