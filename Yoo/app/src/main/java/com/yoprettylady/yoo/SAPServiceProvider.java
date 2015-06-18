@@ -2,9 +2,7 @@ package com.yoprettylady.yoo;
 
 import android.content.Intent;
 import android.os.Binder;
-import android.os.Build;
 import android.os.IBinder;
-import android.text.format.Time;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -14,49 +12,59 @@ import com.samsung.android.sdk.accessory.SAAgent;
 import com.samsung.android.sdk.accessory.SAPeerAgent;
 import com.samsung.android.sdk.accessory.SASocket;
 
-import java.io.IOException;
-import java.util.HashMap;
-
 /**
  * Created by Sean on 3/8/2015.
  */
 public class SAPServiceProvider extends SAAgent{
 
     public final static String TAG = "SAPServiceProvider";
-    public final static int SAP_SERVICE_CHANNEL_ID = 123;
+    public final static int INCOMING_CHANNEL_ID = 123;
+    public final static int OUTGOING_CHANNEL_ID = 234;
     private final IBinder mIBinder = new LocalBinder();
-    static HashMap<Integer, SAPServiceProviderConnection> connectionMap = null;
+    static YooProviderSocket currentConnection = null;
 
     public SAPServiceProvider(){
-        super(TAG,SAPServiceProviderConnection.class);
+        super(TAG,YooProviderSocket.class);
+    }
+
+    //callback for SAAgent.findPeerAgents()
+    @Override
+    protected void onFindPeerAgentResponse(SAPeerAgent peerAgent, int result) {
+        if(result == PEER_AGENT_FOUND) {
+            if(matchesMe(peerAgent)){}//TODO fix this when you know what it reads
+            requestServiceConnection(peerAgent);
+        } else if(result == FINDPEER_DEVICE_NOT_CONNECTED){
+            Log.i(TAG, "Peer Agents are not found, no accessory device connected.");
+        } else if(result == FINDPEER_SERVICE_NOT_FOUND ) {
+            Log.i(TAG, "No matching service on connected accessory.");
+        }
+    }
+
+    private boolean matchesMe(SAPeerAgent peerAgent){
+        if(peerAgent.getAppName().equals("Yoo")) Log.e(TAG,"the peeragent's id: " +peerAgent.getPeerId());
+        return false;
     }
 
     @Override
-    protected void onFindPeerAgentResponse(SAPeerAgent saPeerAgent, int i) {
-
-    }
-
-    @Override
-    protected void onServiceConnectionResponse(SASocket thisConnection, int result) {
+    protected void onServiceConnectionResponse(SAPeerAgent peerAgent, SASocket thisConnection, int result) {
         if(result == CONNECTION_SUCCESS){
             if(thisConnection != null){
-                SAPServiceProviderConnection myConnection = (SAPServiceProviderConnection) thisConnection;
+                currentConnection = (YooProviderSocket) thisConnection;
 
-                if(connectionMap == null){
-                    connectionMap  = new HashMap<Integer, SAPServiceProviderConnection>();
-                }
-
-                myConnection.connectionID = (int) (System.currentTimeMillis() & 255);
-
-                Log.d(TAG, "onServiceConnection connectionID = " + myConnection.connectionID);
                 Toast.makeText(getBaseContext(),"CONNECTION ESTABLIHED", Toast.LENGTH_LONG).show();
-            }else{
-                Log.e(TAG, "SASocket object is null");
-            }
-        }else if(result == CONNECTION_ALREADY_EXIST){
-            Log.e(TAG, "onServiceConnectionResponse, CONNECTION_ALREADY_EXIST");
-        }else{
-            Log.e(TAG, "onSeviceConnectionResponse result error = " + result);
+            }else Log.e(TAG, "SASocket object is null");
+        }
+        else if(result == CONNECTION_ALREADY_EXIST) Log.e(TAG, "onServiceConnectionResponse, CONNECTION_ALREADY_EXIST");
+        else Log.e(TAG, "onSeviceConnectionResponse result error = " + result);
+
+    }
+
+    @Override
+    protected void onPeerAgentUpdated(SAPeerAgent peerAgent, int result) {
+        if(result == PEER_AGENT_AVAILABLE) {
+            requestServiceConnection(peerAgent);
+        } else if (result == PEER_AGENT_UNAVAILABLE) {
+            Log.i(TAG,"Peer Agent no longer available:" + peerAgent.getAppName());
         }
     }
 
@@ -65,13 +73,18 @@ public class SAPServiceProvider extends SAAgent{
         return mIBinder;
     }
 
+    public void findPeers() {
+        findPeerAgents();
+    }
+
+    //initialize the accessory framework (with SA.initialize())
     @Override
     public void onCreate() {
         super.onCreate();
 
-        SA mAcessory = new SA();
+        SA mAccessory = new SA();
         try{
-            mAcessory.initialize(this);
+            mAccessory.initialize(this);
             Log.d("SAP Provider", "oncreate try block");
         } catch (SsdkUnsupportedException e){
             Log.d("SAP PROVIDER", "on create try block error unsuported sdk");
@@ -82,15 +95,18 @@ public class SAPServiceProvider extends SAAgent{
         }
     }
 
-    static public String getDeviceInfo(){
-        String manufacturer = Build.MANUFACTURER;
-        String model = Build.MODEL;
-        return manufacturer + " " + model;
-    }
-
+    //callback for handling connection requests (always accept)
     @Override
     protected void onServiceConnectionRequested(SAPeerAgent peerAgent) {
+        Log.e("     onServiceConnectionRequested    ", "accepting service...");
         acceptServiceConnectionRequest(peerAgent);
+    }
+
+    public static void closeConnection(){
+        if(currentConnection != null){
+            currentConnection.close();
+            currentConnection = null;
+        }
     }
 
     public class LocalBinder extends Binder {
@@ -99,53 +115,4 @@ public class SAPServiceProvider extends SAAgent{
         }
     }
 
-    public static class SAPServiceProviderConnection extends SASocket{
-
-        private int connectionID;
-
-        SAPServiceProviderConnection(){
-            super(SAPServiceProviderConnection.class.getName());
-        }
-
-        @Override
-        public void onError(int channelID, String errorString, int errorCode) {
-            Log.e(TAG,"ERROR: "+errorString+ " | " + errorCode);
-        }
-
-        @Override
-        public void onReceive(int channelID, byte[] data) {
-            final String message;
-            Time time = new Time();
-            time.set(System.currentTimeMillis());
-            String timeStr = " " + String.valueOf(time.minute) + ":" + String.valueOf(time.second);
-            String strToUpdateUI = new String(data);
-            message = getDeviceInfo() + strToUpdateUI.concat(timeStr);
-
-            Log.d("SAP MESSAGE",message);
-
-            final SAPServiceProviderConnection uHandler = connectionMap.get(Integer.parseInt(String.valueOf(connectionID)));
-
-            if(uHandler == null){
-                Log.e(TAG,"Error, can not get SAPServiceProviderConnection handler");
-                return;
-            }
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try{
-                        uHandler.send(SAP_SERVICE_CHANNEL_ID, message.getBytes());
-                    }catch (IOException e){
-                        e.printStackTrace();
-                    }
-                }
-            }).start();
-        }
-
-        @Override
-        protected void onServiceConnectionLost(int i) {
-            if(connectionMap != null){
-                connectionMap.remove(connectionID);
-            }
-        }
-    }
 }

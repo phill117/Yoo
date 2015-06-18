@@ -13,6 +13,7 @@
     <uses-permission android:name="com.samsung.android.providers.context.permission.WRITE_USE_APP_FEATURE_SURVEY"/>
     <uses-permission android:name="com.samsung.wmanager.APP"/>
     <uses-permission android:name="com.samsung.wmanager.ENABLE_NOTIFICATION"/>
+    <uses-permission android:name="com.samsung.WATCH_APP_TYPE.Integrated"/>
 
     <application
         android:allowBackup="true"
